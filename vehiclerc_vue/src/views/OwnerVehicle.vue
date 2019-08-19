@@ -67,7 +67,7 @@
         </Modal>
         <Modal
                 v-model="editModal"
-                title="业主车辆信息增加"
+                title="业主车辆信息编辑"
                 :closable="false"
                 @on-ok="doEdit"
                 @on-cancel="cancelOrNot('edit')">

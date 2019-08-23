@@ -267,6 +267,8 @@ class ParkingSpaceList(Resource):
 class RecognitionView(Resource):
     # 文件识别
     def post(self):
+        if not is_login():
+            return messageToJson(message="请先登录"), 401
         plate_photo = request.files.get('platePhoto')
         dir_path = basedir + "/static/userUpload/"
         image_path = dir_path + plate_photo.filename
@@ -306,7 +308,8 @@ class RecognitionView(Resource):
             else:
                 parking_log.status = CarStatus.LEAVED  # 状态为驶离开
             # 计算停车时长和应缴费用
-            park_time = (datetime.datetime.strptime(parking_log.outTime, "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
+            park_time = (datetime.datetime.strptime(parking_log.outTime,
+                                                    "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
             message['parkTime'] = park_time
             message['price'] = calc_price(park_time)
             # 查询车位状态

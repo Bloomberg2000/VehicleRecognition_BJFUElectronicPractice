@@ -1,6 +1,3 @@
-# from enum import Enum
-
-
 class CarStatus:
     PARKING = "停泊"
     LEAVED = "驶离"

@@ -312,6 +312,7 @@ class RecognitionView(Resource):
                                                     "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
             message['parkTime'] = park_time
             message['price'] = calc_price(park_time)
+            message['logInfo'] = queryToJson(parking_log)
             # 查询车位状态
             parking_space = ParkingSpace.query.filter(ParkingSpace.plateNumber == plate_number).first()
             if parking_space:
@@ -357,6 +358,7 @@ class RecognitionView(Resource):
             # 改变车位状态
             parking_space.status = enums.ParkingSpaceStatus.USED
             parking_space.plateNumber = plate_number
+            message['logInfo'] = queryToJson(new_parking_log)
             message['parkingSpace'] = parking_space.spaceName
             # 保存数据库信息
             db_session.commit()

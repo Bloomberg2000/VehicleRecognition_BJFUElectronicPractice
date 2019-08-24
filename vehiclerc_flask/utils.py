@@ -81,7 +81,7 @@ def calc_price(time):
 
 
 def format_time(time):
-    return (time + datetime.timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
+    return (time).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def current_time():

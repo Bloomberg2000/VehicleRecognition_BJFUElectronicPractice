@@ -18,9 +18,11 @@
                     </Select>
                     <divider type="vertical"></divider>
                     <Input v-model="filterText" :placeholder="placeHolder" style="width: 300px"/>
-                    <Button type="primary" style="margin-left: 10px" @click="doSearch">搜索</Button>
                     <Divider type="vertical"/>
-                    <Button style="margin-left: 10px" @click="clearSearch">清除</Button>
+                    <ButtonGroup>
+                        <Button type="primary" style="margin-left: 10px" @click="doSearch">搜索</Button>
+                        <Button @click="clearSearch">清除</Button>
+                    </ButtonGroup>
                 </Col>
                 <Col span="2">
                     <Button type="text" @click="addModal = true">
@@ -179,14 +181,11 @@
                         width: 200,
                         align: 'center',
                         render: (h, params) => {
-                            return h('div', [
+                            return h('ButtonGroup', [
                                 h('Button', {
                                     props: {
                                         type: 'default',
                                         size: 'small'
-                                    },
-                                    style: {
-                                        marginRight: '5px'
                                     },
                                     on: {
                                         click: () => {
@@ -198,9 +197,6 @@
                                     props: {
                                         type: 'default',
                                         size: 'small'
-                                    },
-                                    style: {
-                                        marginRight: '5px'
                                     },
                                     on: {
                                         click: () => {
@@ -236,7 +232,7 @@
             this.getOwnerVehicalList(this.pageData.pageSize, 1);
             if (this.$store.state.currentUserID === "") {
                 this.$Message.info("请先登录");
-                this.tableData=[];
+                this.tableData = [];
                 this.login();
             }
         },
@@ -245,7 +241,7 @@
                 axios.get(Car, {
                     params: {
                         status: this.status,
-                        filiterMethod: this.filterMethod,
+                        filterMethod: this.filterMethod,
                         filterText: this.filterText,
                         pageSize: pageSize,
                         pageNum: pageNum
@@ -478,7 +474,7 @@
                     this.getOwnerVehicalList(this.pageData.pageSize, 1);
                 } else {
                     this.$Message.info("请先登录");
-                    this.tableData=[];
+                    this.tableData = [];
                     this.login();
                 }
             },

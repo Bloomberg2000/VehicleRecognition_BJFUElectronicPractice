@@ -36,14 +36,14 @@
                             <Icon type="md-car"/>
                             业主车辆信息
                         </MenuItem>
-                        <MenuItem name="/foreignvehicle">
-                            <Icon type="md-car"/>
-                            外来车辆信息
-                        </MenuItem>
-                        <MenuItem name="/parkinglot ">
+                        <MenuItem name="/parkinglot">
                             <Icon type="md-car"/>
                             停车场实时信息
                         </MenuItem>
+<!--                        <MenuItem name="/parkinglot">-->
+<!--                            <Icon type="md-car"/>-->
+<!--                            停车场实时信息-->
+<!--                        </MenuItem>-->
                     </Menu>
                 </Sider>
                 <Layout :style="{padding: '0 24px 24px'}">

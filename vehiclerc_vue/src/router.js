@@ -16,11 +16,6 @@ export default new Router({
       component:  () => import('./views/OwnerVehicle.vue')
     },
     {
-      path: '/foreignvehicle',
-      name: 'foreignvehicle',
-      component:  () => import('./views/ForeignVehicle.vue')
-    },
-    {
       path: '/parkinglot',
       name: 'parkinglot',
       component:  () => import('./views/ParkingLot.vue')

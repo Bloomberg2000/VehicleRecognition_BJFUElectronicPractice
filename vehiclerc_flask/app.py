@@ -4,13 +4,15 @@ from datetime import timedelta
 import sqlalchemy
 from flask import Flask, request, session, Response
 from flask_restful import Resource, Api
+from sqlalchemy import and_, or_
 
 import enums
 from database import db_session
 from enums import CarStatus
 from models import Cars, ParkingLog, ParkingSpace, Users
 from recognition import get_license_plate
-from utils import queryToJson, messageToJson, PaginationHelper, is_login, who_is_login, md5, current_time, calc_price
+from utils import queryToJson, messageToJson, PaginationHelper, is_login, who_is_login, md5, current_time, calc_price, \
+    utc_to_local
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)  # 设置为24位的字符,每次运行服务器都是不同的，所以服务器启动一次上次的session就清除。
@@ -31,7 +33,9 @@ class UserView(Resource):
         if not is_login():
             return messageToJson("请先登录"), 401
         userInfo = Users.query.filter(Users.id == who_is_login()).first()
-        return messageToJson(data={"id": userInfo.id, "name": userInfo.name, "email": userInfo.email})
+        return_message = messageToJson(data={"id": userInfo.id, "name": userInfo.name, "email": userInfo.email})
+        db_session.close()
+        return return_message, 200
 
     # 注册
     def post(self):
@@ -41,11 +45,15 @@ class UserView(Resource):
         if name and email and password:
             current_user = Users.query.filter(Users.email == email).first()
             if current_user:
-                return messageToJson(message="用户已存在"), 400
+                return_message = messageToJson(message="用户已存在")
+                db_session.close()
+                return return_message, 400
             new_user = Users(name, email, password)
             db_session.add(new_user)
             db_session.commit()
-            return messageToJson(message="注册成功", data={"email": email, "name": name}), 202
+            return_message = messageToJson(message="注册成功", data={"email": email, "name": name})
+            db_session.close()
+            return return_message, 202
         else:
             return messageToJson(message="请确认已填写必填字段"), 400
 
@@ -53,8 +61,6 @@ class UserView(Resource):
 class AuthView(Resource):
     # 注销
     def get(self):
-        # if not is_login():
-        #     return messageToJson("请先登录"), 401
         session.clear()
         return messageToJson("注销完成"), 200
 
@@ -70,11 +76,17 @@ class AuthView(Resource):
                     session.permanent = True
                     session['ISLOGIN'] = "true"
                     session['USERUNIQUEID'] = current_user.id
-                    return messageToJson(message="登录成功", data={"userID": current_user.id}), 202
+                    return_message = messageToJson(message="登录成功", data={"userID": current_user.id})
+                    db_session.close()
+                    return return_message, 202
                 else:
-                    return messageToJson(message="密码错误"), 400
+                    return_message = messageToJson(message="密码错误")
+                    db_session.close()
+                    return return_message, 400
             else:
-                return messageToJson(message="用户不存在"), 400
+                return_message = messageToJson(message="用户不存在")
+                db_session.close()
+                return return_message, 400
         else:
             return messageToJson(message="请确认已填写必填字段"), 400
 
@@ -85,7 +97,7 @@ class CarList(Resource):
         if not is_login():
             return messageToJson(message="请先登录"), 401
         status = request.args.get('status')
-        filiter_method = request.args.get('filiterMethod')
+        filter_method = request.args.get('filterMethod')
         filter_text = request.args.get('filterText')
         page_size = request.args.get('pageSize')
         page_num = request.args.get('pageNum')
@@ -101,26 +113,30 @@ class CarList(Resource):
             if status == "外出" or status == "停泊":
                 car_list = car_list.filter(Cars.status == status)
             if filter_text and filter_text != "":
-                if filiter_method == "车牌号":
+                if filter_method == "车牌号":
                     car_list = car_list.filter(Cars.plateNumber.like('%' + filter_text + '%'))
-                elif filiter_method == "车主姓名":
+                elif filter_method == "车主姓名":
                     car_list = car_list.filter(Cars.name.like('%' + filter_text + '%'))
-                elif filiter_method == "车主住址":
+                elif filter_method == "车主住址":
                     car_list = car_list.filter(Cars.houseNumber.like('%' + filter_text + '%'))
-                elif filiter_method == "车主电话":
+                elif filter_method == "车主电话":
                     car_list = car_list.filter(Cars.phoneNum.like('%' + filter_text + '%'))
-                elif filiter_method == "车主身份证号":
+                elif filter_method == "车主身份证号":
                     car_list = car_list.filter(Cars.idCardNum.like('%' + filter_text + '%'))
             # 分页助手
             pagination_helper = PaginationHelper(car_list.count(), page_size)
             if pagination_helper.total_page < page_num:
+                db_session.close()
                 return messageToJson(message="页面不存在"), 500
-            return messageToJson(data={
+
+            return_message = messageToJson(data={
                 "totalPage": pagination_helper.total_page,
                 "dataCount": pagination_helper.data_count,
                 "currentPage": page_num,
             },
-                queryData=car_list.limit(page_size).offset(pagination_helper.get_offset(page_num)).all()), 200
+                queryData=car_list.limit(page_size).offset(pagination_helper.get_offset(page_num)).all())
+            db_session.close()
+            return return_message, 200
         else:
             return messageToJson("请求参数不正确"), 500
 
@@ -139,8 +155,11 @@ class CarList(Resource):
                 new_car = Cars(brand, plate_number, name, house_number, phone_num, id_card_num)
                 db_session.add(new_car)
                 db_session.commit()
-                return queryToJson(new_car), 201
+                return_message = queryToJson(new_car)
+                db_session.close()
+                return return_message, 201
             except sqlalchemy.exc.IntegrityError:
+                db_session.close()
                 return messageToJson(message="该车牌已存在"), 500
         else:
             return messageToJson(message="请确认必填项已填写"), 400
@@ -158,8 +177,11 @@ class CarList(Resource):
                 for car in current_car:
                     db_session.delete(car)
                 db_session.commit()
-                return messageToJson(message="删除成功", queryData=current_car), 200
+                return_message = messageToJson(message="删除成功", queryData=current_car)
+                db_session.close()
+                return return_message, 200
             else:
+                db_session.close()
                 return messageToJson(message="车辆不存在"), 400
         else:
             return messageToJson(message="请选择要删除的车辆"), 400
@@ -172,8 +194,11 @@ class CarDetail(Resource):
             return messageToJson(message="请先登录"), 401
         current_car = Cars.query.get(car_id)
         if current_car:
-            return queryToJson(current_car), 200
+            return_message = queryToJson(current_car)
+            db_session.close()
+            return return_message, 200
         else:
+            db_session.close()
             return messageToJson("车辆不存在"), 400
 
     # 编辑业主车
@@ -197,12 +222,17 @@ class CarDetail(Resource):
                     current_car.phoneNum = phone_num
                     current_car.idCardNum = id_card_num
                     db_session.commit()
-                    return queryToJson(current_car), 200
+                    return_message = queryToJson(current_car)
+                    db_session.close()
+                    return return_message, 200
                 except sqlalchemy.exc.IntegrityError:
+                    db_session.close()
                     return messageToJson(message="该车牌已存在"), 500
             else:
+                db_session.close()
                 return messageToJson(message='请确认必填项已填写'), 400
         else:
+            db_session.close()
             return messageToJson(message="车辆不存在"), 400
 
     # 删除业主车
@@ -213,8 +243,11 @@ class CarDetail(Resource):
         if current_car:
             db_session.delete(current_car)
             db_session.commit()
-            return messageToJson(message="删除成功", queryData=current_car), 200
+            return_message = messageToJson(message="删除成功", queryData=current_car)
+            db_session.close()
+            return return_message, 200
         else:
+            db_session.close()
             return messageToJson(message="车辆不存在"), 400
 
 
@@ -224,7 +257,10 @@ class ParkingLogList(Resource):
         if not is_login():
             return messageToJson(message="请先登录"), 401
         status = request.args.get('status')
+        filter_method = request.args.get('filterMethod')
         filter_text = request.args.get('filterText')
+        start_time = request.args.get('startTime')
+        end_time = request.args.get('endTime')
         page_size = request.args.get('pageSize')
         page_num = request.args.get('pageNum')
         type = request.args.get('type')
@@ -236,23 +272,44 @@ class ParkingLogList(Resource):
             except ValueError:
                 return messageToJson("分页参数不正确"), 500
             # 进行筛选查询
-            parking_list = ParkingLog.query
+            # parking_list = ParkingLog.query
+            parking_list = db_session.query(ParkingLog, ParkingSpace) \
+                .outerjoin(ParkingSpace, and_(ParkingLog.plateNumber == ParkingSpace.plateNumber,
+                                              ParkingLog.status == CarStatus.PARKING))
             if type == "外来车" or type == "业主车":
                 parking_list = parking_list.filter(ParkingLog.type == type)
-            if status == "停泊" or status == "已驶离":
+            if status == "停泊" or status == "驶离" or status == "外出":
                 parking_list = parking_list.filter(ParkingLog.status == status)
             if filter_text and filter_text != "":
-                parking_list = parking_list.filter(ParkingLog.plateNumber.like('%' + filter_text + '%'))
+                if filter_method == "车牌号":
+                    parking_list = parking_list.filter(ParkingLog.plateNumber.like('%' + filter_text + '%'))
+                elif filter_method == "车位号":
+                    parking_list = parking_list.filter(ParkingSpace.spaceName.like('%' + filter_text + '%'))
+            if start_time and end_time and start_time != "" and end_time != "":
+                start_time = utc_to_local(start_time)
+                end_time = utc_to_local(end_time)
+                parking_list = parking_list.filter(
+                    and_(ParkingLog.enterTime >= start_time, ParkingLog.enterTime <= end_time))
             # 分页助手
             pagination_helper = PaginationHelper(parking_list.count(), page_size)
             if pagination_helper.total_page < page_num:
+                db_session.close()
                 return messageToJson(message="页面不存在"), 500
-            return messageToJson(data={
+            return_message = messageToJson(data={
                 "totalPage": pagination_helper.total_page,
                 "dataCount": pagination_helper.data_count,
                 "currentPage": page_num,
+                "freeNormalParingPlace": ParkingSpace.query.filter(
+                    ParkingSpace.status == enums.ParkingSpaceStatus.FREE).filter(
+                    ParkingSpace.type == enums.ParkingSpaceType.FUEL).count(),
+                "freeChargeParingPlace": ParkingSpace.query.filter(
+                    ParkingSpace.status == enums.ParkingSpaceStatus.FREE).filter(
+                    ParkingSpace.type == enums.ParkingSpaceType.WASHING_ENERGY).count()
             },
-                queryData=parking_list.limit(page_size).offset(pagination_helper.get_offset(page_num)).all()), 200
+                queryData=parking_list.order_by(-ParkingLog.enterTime).limit(page_size).offset(
+                    pagination_helper.get_offset(page_num)).all())
+            db_session.close()
+            return return_message, 200
         else:
             return messageToJson("请求参数不正确"), 500
 
@@ -266,39 +323,12 @@ class ParkingLogDetail(Resource):
         if current_log:
             db_session.delete(current_log)
             db_session.commit()
-            return messageToJson(message="删除成功", queryData=current_log), 200
+            return_message = messageToJson(message="删除成功", queryData=current_log)
+            db_session.close()
+            return return_message, 200
         else:
+            db_session.close()
             return messageToJson(message="记录不存在"), 400
-
-
-class ParkingSpaceList(Resource):
-    # 停车记录列表
-    def get(self):
-        if not is_login():
-            return messageToJson(message="请先登录"), 401
-        page_size = request.args.get('pageSize')
-        page_num = request.args.get('pageNum')
-        # 判断参数是否正确
-        if page_size and page_num:
-            try:
-                page_num = int(page_num)
-                page_size = int(page_size)
-            except ValueError:
-                return messageToJson("分页参数不正确"), 500
-            # 进行筛选查询
-            space_list = ParkingSpace.query
-            # 分页助手
-            pagination_helper = PaginationHelper(space_list.count(), page_size)
-            if pagination_helper.total_page < page_num:
-                return messageToJson(message="页面不存在"), 500
-            return messageToJson(data={
-                "totalPage": pagination_helper.total_page,
-                "dataCount": pagination_helper.data_count,
-                "currentPage": page_num,
-            },
-                queryData=space_list.limit(page_size).offset(pagination_helper.get_offset(page_num)).all()), 200
-        else:
-            return messageToJson("请求参数不正确"), 500
 
 
 #
@@ -327,11 +357,12 @@ class RecognitionView(Resource):
         except KeyError:
             return messageToJson(message="未检测到车牌"), 500
 
-        plate_color = '新能源车' if (plate_color == 'green') else '燃油车'
+        type = '新能源车' if (plate_color == 'green') else '燃油车'
         message = {
             'isOwnerCar': False,
             'inOrOut': '',
-            'color': plate_color,
+            'inOrOutText': '',
+            'type': type,
             'number': plate_number,
             'fileName': plate_photo.filename
         }
@@ -339,14 +370,17 @@ class RecognitionView(Resource):
         owner_car = Cars.query.filter(Cars.plateNumber == plate_number).first()
         if owner_car:
             message['isOwnerCar'] = True
+            message['type'] += " 业主车"
         else:
             message['isOwnerCar'] = False
+            message['type'] += " 外来车"
         # 检索停车记录表最新的一条记录
         parking_log = ParkingLog.query.filter(ParkingLog.plateNumber == plate_number).order_by(
             -ParkingLog.enterTime).first()
         if parking_log and parking_log.status == CarStatus.PARKING:
             # 有记录且未离开（本次为出库）
             message['inOrOut'] = 'out'
+            message['inOrOutText'] = '出库'
             parking_log.outTime = current_time()  # 储存外出时间
             # 是否为业主车
             if message['isOwnerCar']:
@@ -359,7 +393,7 @@ class RecognitionView(Resource):
             park_time = (datetime.datetime.strptime(parking_log.outTime,
                                                     "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
             message['parkTime'] = park_time
-            message['price'] = calc_price(park_time) + '元'
+            message['price'] = str(calc_price(park_time)) + '元'
             message['logInfo'] = queryToJson(parking_log)
             # 查询车位状态
             parking_space = ParkingSpace.query.filter(ParkingSpace.plateNumber == plate_number).first()
@@ -368,14 +402,17 @@ class RecognitionView(Resource):
                 parking_space.status = enums.ParkingSpaceStatus.FREE
                 parking_space.plateNumber = '-'
                 db_session.commit()  # 保存数据库状态
-                return messageToJson(data=message)
+                db_session.close()
+                return messageToJson(data=message), 200
             else:
                 # 车为出库状态，但无入库记录，发出警告
                 db_session.commit()  # 保存数据库状态
+                db_session.close()
                 return messageToJson(message="车辆状态有误，请联系管理员检查", data=message), 500
         else:
             # 有记录且已离开/无记录（本次为入库）
             message['inOrOut'] = 'in'
+            message['inOrOutText'] = '入库'
             new_parking_log = ParkingLog(plate_number, plate_color, current_time())
             # 是否为业主车
             if message['isOwnerCar']:
@@ -402,6 +439,7 @@ class RecognitionView(Resource):
                     parking_space = parking_space.order_by(ParkingSpace.id).first()
                 else:
                     # 此处不保存任何数据库状态
+                    db_session.close()
                     return messageToJson(message="已无空闲车位，请稍后", data=message), 500
             # 改变车位状态
             parking_space.status = enums.ParkingSpaceStatus.USED
@@ -410,7 +448,8 @@ class RecognitionView(Resource):
             message['parkingSpace'] = parking_space.spaceName
             # 保存数据库信息
             db_session.commit()
-        return messageToJson(data=message)
+            db_session.close()
+            return messageToJson(data=message), 200
 
 
 api.add_resource(UserView, '/user')
@@ -420,7 +459,6 @@ api.add_resource(CarList, '/car')
 api.add_resource(CarDetail, '/car/<car_id>')
 api.add_resource(ParkingLogList, '/parkingLog')
 api.add_resource(ParkingLogDetail, '/parkingLog/<log_id>')
-api.add_resource(ParkingSpaceList, '/parkingSpace')
 
 if __name__ == '__main__':
     app.run(debug=True)

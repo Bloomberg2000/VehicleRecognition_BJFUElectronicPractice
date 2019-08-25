@@ -6,8 +6,6 @@ import enums
 from flask import session
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
-from database import db_session
-
 
 class AlchemyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -85,6 +83,12 @@ def calc_price(time):
 
 def format_time(time):
     return (time).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def utc_to_local(origin_date_str):
+    utc_date = datetime.datetime.strptime(origin_date_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+    local_date = utc_date + datetime.timedelta(hours=8)
+    return format_time(local_date)
 
 
 def current_time():

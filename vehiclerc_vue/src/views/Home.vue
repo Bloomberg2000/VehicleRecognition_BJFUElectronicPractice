@@ -33,12 +33,15 @@
             <Row v-show="!success" type="flex" justify="center" align="middle" style="margin-top: 20px">
                 <Button type="text" loading>加载中...</Button>
             </Row>
-            <Form v-if="success" :model="recognitionData" :label-width="80">
+            <Form v-if="success" :model="recognitionData" :label-width="100">
                 <FormItem label="车牌号">
                     <Input disabled v-model="recognitionData.data.number"/>
                 </FormItem>
-                <FormItem label="类别">
-                    <Input disabled v-model="recognitionData.data.color"/>
+                <FormItem label="车辆类别">
+                    <Input disabled v-model="recognitionData.data.type"/>
+                </FormItem>
+                <FormItem label="当前状态">
+                    <Input disabled v-model="recognitionData.data.inOrOutText"/>
                 </FormItem>
                 <FormItem label="停车时长" v-show="recognitionData.data.inOrOut === 'out'">
                     <Input disabled v-model="recognitionData.data.parkTime"/>

@@ -24,14 +24,18 @@ class Cars(Base):
     plateNumber = Column(String(100), unique=True)
     name = Column(String(100))
     houseNumber = Column(String(100))
+    phoneNum = Column(String(11))
+    idCardNum = Column(String(30))
     status = Column(String(32))
 
-    def __init__(self, brand, plateNumber, name, houseNumber, status=CarStatus.PARKING):
+    def __init__(self, brand, plateNumber, name, houseNumber, phoneNum, idCardNum, status=CarStatus.PARKING):
         self.brand = brand
         self.plateNumber = plateNumber
         self.name = name
         self.houseNumber = houseNumber
         self.status = status
+        self.phoneNum = phoneNum
+        self.idCardNum = idCardNum
 
 
 class ParkingLog(Base):

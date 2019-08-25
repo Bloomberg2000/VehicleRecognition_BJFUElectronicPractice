@@ -1,9 +1,8 @@
 import datetime
 import os
 from datetime import timedelta
-
 import sqlalchemy
-from flask import Flask, request, session
+from flask import Flask, request, session, Response
 from flask_restful import Resource, Api
 
 import enums
@@ -11,7 +10,7 @@ from database import db_session
 from enums import CarStatus
 from models import Cars, ParkingLog, ParkingSpace, Users
 from recognition import get_license_plate
-from utils import queryToJson, messageToJson, PaginationHelper, is_login, md5, current_time, calc_price
+from utils import queryToJson, messageToJson, PaginationHelper, is_login, who_is_login, md5, current_time, calc_price
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)  # 设置为24位的字符,每次运行服务器都是不同的，所以服务器启动一次上次的session就清除。
@@ -26,13 +25,40 @@ def hello_world():
     return 'Hello World!'
 
 
-class AuthView(Resource):
+class UserView(Resource):
+    # 获取用户信息
     def get(self):
         if not is_login():
             return messageToJson("请先登录"), 401
+        userInfo = Users.query.filter(Users.id == who_is_login()).first()
+        return messageToJson(data={"id": userInfo.id, "name": userInfo.name, "email": userInfo.email})
+
+    # 注册
+    def post(self):
+        name = request.form['name']
+        email = request.form['email']
+        password = request.form['password']
+        if name and email and password:
+            current_user = Users.query.filter(Users.email == email).first()
+            if current_user:
+                return messageToJson(message="用户已存在"), 400
+            new_user = Users(name, email, password)
+            db_session.add(new_user)
+            db_session.commit()
+            return messageToJson(message="注册成功", data={"email": email, "name": name}), 202
+        else:
+            return messageToJson(message="请确认已填写必填字段"), 400
+
+
+class AuthView(Resource):
+    # 注销
+    def get(self):
+        # if not is_login():
+        #     return messageToJson("请先登录"), 401
         session.clear()
         return messageToJson("注销完成"), 200
 
+    # 登录
     def post(self):
         email = request.form['email']
         password = request.form['password']
@@ -50,7 +76,7 @@ class AuthView(Resource):
             else:
                 return messageToJson(message="用户不存在"), 400
         else:
-            return messageToJson(message="请确认已填写比天资端"), 400
+            return messageToJson(message="请确认已填写必填字段"), 400
 
 
 class CarList(Resource):
@@ -81,6 +107,10 @@ class CarList(Resource):
                     car_list = car_list.filter(Cars.name.like('%' + filter_text + '%'))
                 elif filiter_method == "车主住址":
                     car_list = car_list.filter(Cars.houseNumber.like('%' + filter_text + '%'))
+                elif filiter_method == "车主电话":
+                    car_list = car_list.filter(Cars.phoneNum.like('%' + filter_text + '%'))
+                elif filiter_method == "车主身份证号":
+                    car_list = car_list.filter(Cars.idCardNum.like('%' + filter_text + '%'))
             # 分页助手
             pagination_helper = PaginationHelper(car_list.count(), page_size)
             if pagination_helper.total_page < page_num:
@@ -102,9 +132,11 @@ class CarList(Resource):
         plate_number = request.form['plateNumber']
         name = request.form['name']
         house_number = request.form['houseNumber']
-        if brand and plate_number and name and house_number:
+        phone_num = request.form['phoneNum']
+        id_card_num = request.form['idCardNum']
+        if brand and plate_number and name and house_number and phone_num and id_card_num:
             try:
-                new_car = Cars(brand, plate_number, name, house_number)
+                new_car = Cars(brand, plate_number, name, house_number, phone_num, id_card_num)
                 db_session.add(new_car)
                 db_session.commit()
                 return queryToJson(new_car), 201
@@ -117,9 +149,10 @@ class CarList(Resource):
     def delete(self):
         if not is_login():
             return messageToJson(message="请先登录"), 401
-        id_to_del = request.form['idToDel']
+        id_to_del = request.json['idToDel']
         if id_to_del:
             id_list = id_to_del.split(" ")  # 根据逗号分割字符串
+            id_list.pop()
             current_car = Cars.query.filter(Cars.id.in_(id_list)).all()
             if current_car:
                 for car in current_car:
@@ -153,12 +186,16 @@ class CarDetail(Resource):
             plate_number = request.form['plateNumber']
             name = request.form['name']
             house_number = request.form['houseNumber']
-            if brand and plate_number and name and house_number:
+            phone_num = request.form['phoneNum']
+            id_card_num = request.form['idCardNum']
+            if brand and plate_number and name and house_number and phone_num and id_card_num:
                 try:
                     current_car.brand = brand
                     current_car.plateNumber = plate_number
                     current_car.name = name
                     current_car.houseNumber = house_number
+                    current_car.phoneNum = phone_num
+                    current_car.idCardNum = id_card_num
                     db_session.commit()
                     return queryToJson(current_car), 200
                 except sqlalchemy.exc.IntegrityError:
@@ -264,6 +301,15 @@ class ParkingSpaceList(Resource):
             return messageToJson("请求参数不正确"), 500
 
 
+#
+#
+# class ImageDetail(Resource):
+#     def index(self, image_name):
+#         image = file(basedir + "/static/userUpload/{}".format(image_name))
+#         resp = Response(image, mimetype="image/jpeg")
+#         return resp
+
+
 class RecognitionView(Resource):
     # 文件识别
     def post(self):
@@ -281,11 +327,13 @@ class RecognitionView(Resource):
         except KeyError:
             return messageToJson(message="未检测到车牌"), 500
 
+        plate_color = '新能源车' if (plate_color == 'green') else '燃油车'
         message = {
             'isOwnerCar': False,
             'inOrOut': '',
             'color': plate_color,
-            'number': plate_number
+            'number': plate_number,
+            'fileName': plate_photo.filename
         }
         # 检索是否为业主车
         owner_car = Cars.query.filter(Cars.plateNumber == plate_number).first()
@@ -311,7 +359,7 @@ class RecognitionView(Resource):
             park_time = (datetime.datetime.strptime(parking_log.outTime,
                                                     "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
             message['parkTime'] = park_time
-            message['price'] = calc_price(park_time)
+            message['price'] = calc_price(park_time) + '元'
             message['logInfo'] = queryToJson(parking_log)
             # 查询车位状态
             parking_space = ParkingSpace.query.filter(ParkingSpace.plateNumber == plate_number).first()
@@ -365,6 +413,7 @@ class RecognitionView(Resource):
         return messageToJson(data=message)
 
 
+api.add_resource(UserView, '/user')
 api.add_resource(AuthView, '/auth')
 api.add_resource(RecognitionView, '/recognition')
 api.add_resource(CarList, '/car')

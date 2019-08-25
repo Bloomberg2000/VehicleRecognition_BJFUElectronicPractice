@@ -6,18 +6,21 @@
         <Content :style="{padding: '24px', minHeight: '600px', background: '#fff'}">
             <Row type="flex" justify="start" align="middle">
                 <Col span="22">
-                    <Select v-model="status" placeholder="全部状态" style="width:100px">
+                    <Select ref="status" v-model="status" placeholder="全部状态" style="width:100px" clearable>
                         <Option v-for="item in statusList" :value="item.value" :key="item.value">{{ item.label }}
                         </Option>
                     </Select>
                     <divider type="vertical"></divider>
-                    <Select v-model="filter" placeholder="筛选条件" @on-change="filterChange" style="width:100px">
+                    <Select ref="filterMethod" v-model="filterMethod" placeholder="筛选条件" @on-change="filterChange"
+                            style="width:100px" clearable>
                         <Option v-for="item in filterList" :value="item.value" :key="item.value">{{ item.label }}
                         </Option>
                     </Select>
                     <divider type="vertical"></divider>
-                    <Input v-model="searchText" :placeholder="placeHolder" style="width: 300px"/>
-                    <Button type="primary" style="margin-left: 10px">搜索</Button>
+                    <Input v-model="filterText" :placeholder="placeHolder" style="width: 300px"/>
+                    <Button type="primary" style="margin-left: 10px" @click="doSearch">搜索</Button>
+                    <Divider type="vertical"/>
+                    <Button style="margin-left: 10px" @click="clearSearch">清除</Button>
                 </Col>
                 <Col span="2">
                     <Button type="text" @click="addModal = true">
@@ -32,10 +35,13 @@
                 <div style="margin: 10px;overflow: hidden">
                 </div>
             </div>
-
             <Button type="error" @click="batchDeletion">批量删除</Button>
             <div style="float: right;">
-                <Page :total="1" :current="1" @on-change="changePage" show-total show-sizer show-elevator></Page>
+                <Page :total="pageData.dataCount" :current="pageData.currentPage" :page-size="pageData.pageSize"
+                      :page-size-opts="[5,10,15,20,25,30]"
+                      @on-change="changePage"
+                      @on-page-size-change="changePageSize" show-total
+                      show-sizer show-elevator></Page>
             </div>
         </Content>
         <Modal
@@ -46,19 +52,19 @@
                 @on-cancel="cancelOrNot('add')">
             <Form :model="AddModalForm" :label-width="80">
                 <FormItem label="车主姓名">
-                    <Input v-model="AddModalForm.ownerName" placeholder="请输入车主姓名"></Input>
+                    <Input v-model="AddModalForm.name" placeholder="请输入车主姓名"></Input>
                 </FormItem>
                 <FormItem label="身份证号">
-                    <Input v-model="AddModalForm.ownerIDNum" placeholder="请输入身份证号"></Input>
+                    <Input v-model="AddModalForm.idCardNum" placeholder="请输入身份证号"></Input>
                 </FormItem>
                 <FormItem label="电话号码">
-                    <Input v-model="AddModalForm.ownerPhoneNum" placeholder="请输入电话号码"></Input>
+                    <Input v-model="AddModalForm.phoneNum" placeholder="请输入电话号码"></Input>
                 </FormItem>
                 <FormItem label="住址">
-                    <Input v-model="AddModalForm.ownerAddress" placeholder="请输入车主住址"></Input>
+                    <Input v-model="AddModalForm.houseNumber" placeholder="请输入车主住址"></Input>
                 </FormItem>
                 <FormItem label="车型">
-                    <Input v-model="AddModalForm.type" placeholder="请输入车型"></Input>
+                    <Input v-model="AddModalForm.brand" placeholder="请输入车型"></Input>
                 </FormItem>
                 <FormItem label="车牌号">
                     <Input v-model="AddModalForm.plateNumber" placeholder="请输入车牌号"></Input>
@@ -73,19 +79,19 @@
                 @on-cancel="cancelOrNot('edit')">
             <Form :model="EditModalForm" :label-width="80">
                 <FormItem label="车主姓名">
-                    <Input v-model="EditModalForm.ownerName" placeholder="请输入车主姓名"></Input>
+                    <Input v-model="EditModalForm.name" placeholder="请输入车主姓名"></Input>
                 </FormItem>
                 <FormItem label="身份证号">
-                    <Input v-model="EditModalForm.ownerIDNum" placeholder="请输入身份证号"></Input>
+                    <Input v-model="EditModalForm.idCardNum" placeholder="请输入身份证号"></Input>
                 </FormItem>
                 <FormItem label="电话号码">
-                    <Input v-model="EditModalForm.ownerPhoneNum" placeholder="请输入电话号码"></Input>
+                    <Input v-model="EditModalForm.phoneNum" placeholder="请输入电话号码"></Input>
                 </FormItem>
                 <FormItem label="住址">
-                    <Input v-model="EditModalForm.ownerAddress" placeholder="请输入车主住址"></Input>
+                    <Input v-model="EditModalForm.houseNumber" placeholder="请输入车主住址"></Input>
                 </FormItem>
                 <FormItem label="车型">
-                    <Input v-model="EditModalForm.type" placeholder="请输入车型"></Input>
+                    <Input v-model="EditModalForm.brand" placeholder="请输入车型"></Input>
                 </FormItem>
                 <FormItem label="车牌号">
                     <Input v-model="EditModalForm.plateNumber" placeholder="请输入车牌号"></Input>
@@ -95,37 +101,38 @@
     </div>
 </template>
 <script>
+    import axios from 'axios'
+    import {Car} from "../assets/js/url";
+
     export default {
+        inject: ['login'],
         data() {
             return {
                 addModal: false,
                 editModal: false,
                 status: '',
-                filter: '',
-                searchText: '',
+                filterMethod: '',
+                filterText: '',
                 placeHolder: '请选择筛选条件',
                 AddModalForm: {
-                    ownerName: '',
-                    ownerIDNum: '',
-                    ownerPhoneNum: '',
-                    ownerAddress: '',
-                    type: '',
+                    name: '',
+                    idCardNum: '',
+                    phoneNum: '',
+                    houseNumber: '',
+                    brand: '',
                     plateNumber: ''
                 },
                 EditModalForm: {
-                    ownerName: '',
-                    ownerIDNum: '',
-                    ownerPhoneNum: '',
-                    ownerAddress: '',
-                    type: '',
+                    id: '',
+                    name: '',
+                    idCardNum: '',
+                    phoneNum: '',
+                    houseNumber: '',
+                    brand: '',
                     plateNumber: ''
                 },
                 selection: [],
                 statusList: [
-                    {
-                        value: '全部状态',
-                        label: '全部状态'
-                    },
                     {
                         value: '外出',
                         label: '外出'
@@ -149,17 +156,22 @@
                         label: '车主住址'
                     },
                     {
+                        value: '车主电话',
+                        label: '车主电话'
+                    },
+                    {
                         value: '车主身份证号',
                         label: '车主身份证号'
                     }
                 ],
                 columns: [
                     {type: 'selection', width: 60, align: 'center'},
-                    {title: '编号', key: 'id'},
-                    {title: '车型', key: 'type'},
+                    {title: '车型', key: 'brand'},
                     {title: '车牌号', key: 'plateNumber'},
-                    {title: '车主姓名', key: 'ownerName'},
-                    {title: '车主住址', key: 'ownerAddress'},
+                    {title: '车主姓名', key: 'name'},
+                    {title: '车主住址', key: 'houseNumber'},
+                    {title: '车主电话', key: 'phoneNum'},
+                    {title: '车主身份证号', key: 'idCardNum'},
                     {title: '当前状态', key: 'status'},
                     {
                         title: '操作',
@@ -211,52 +223,59 @@
                         }
                     }
                 ],
-                tableData: [
-                    {
-                        id: 1,
-                        type: "广汽传祺GS3",
-                        plateNumber: "苏BH2222",
-                        ownerName: "韩战军",
-                        ownerAddress: "8#1502",
-                        status: "外出"
-                    },
-                    {
-                        id: 2,
-                        type: "宝骏530",
-                        plateNumber: "豫A1A350",
-                        ownerName: "王欣",
-                        ownerAddress: "4#0801",
-                        status: "外出"
-                    },
-                    {
-                        id: 3,
-                        type: "奔驰GLA",
-                        plateNumber: "苏EB06E6",
-                        ownerName: "袁宜君",
-                        ownerAddress: "1#1704",
-                        status: "外出"
-                    },
-                    {
-                        id: 4,
-                        type: "奇瑞瑞虎",
-                        plateNumber: "沪B69999",
-                        ownerName: "赵薇",
-                        ownerAddress: "6#1804",
-                        status: "外出"
-                    },
-                    {
-                        id: 5,
-                        type: "沃尔沃XC60",
-                        plateNumber: "贵AP2168",
-                        ownerName: "王敬轩",
-                        ownerAddress: "10#1303",
-                        status: "外出"
-                    },
-                ],
+                tableData: [],
+                pageData: {
+                    totalPage: 0,
+                    dataCount: 0,
+                    currentPage: 1,
+                    pageSize: 10
+                }
+            }
+        },
+        mounted() {
+            this.getOwnerVehicalList(this.pageData.pageSize, 1);
+            if (this.$store.state.currentUserID === "") {
+                this.$Message.info("请先登录");
+                this.tableData=[];
+                this.login();
             }
         },
         methods: {
+            getOwnerVehicalList(pageSize, pageNum) {
+                axios.get(Car, {
+                    params: {
+                        status: this.status,
+                        filiterMethod: this.filterMethod,
+                        filterText: this.filterText,
+                        pageSize: pageSize,
+                        pageNum: pageNum
+                    }
+                }).then(res => {
+                    this.tableData = res.data.queryData;
+                    let pageData = res.data.data;
+                    this.pageData.totalPage = pageData.totalPage;
+                    this.pageData.dataCount = pageData.dataCount;
+                    this.pageData.currentPage = pageData.currentPage;
+                }).catch(err => {
+                    this.$Message.error("列表查询出错，请刷新页面" + err.response.data.message);
+                })
+            },
+            doSearch() {
+                this.pageData.currentPage = 1;
+                this.getOwnerVehicalList(this.pageData.pageSize, this.pageData.currentPage)
+            },
+            clearSearch() {
+                this.$refs.status.clearSingleSelect();
+                this.$refs.filterMethod.clearSingleSelect();
+                this.filterText = '';
+                this.pageData.currentPage = 1;
+                this.getOwnerVehicalList(this.pageData.pageSize, this.pageData.currentPage)
+            },
             filterChange(text) {
+                if (typeof (text) === "undefined") {
+                    this.placeHolder = "请选择筛选条件"
+                    return;
+                }
                 this.placeHolder = "请输入" + text
             },
             batchDeletion() {
@@ -265,6 +284,22 @@
                     title: "批量删除",
                     content: "确认要删除已选择的记录吗?",
                     onOk() {
+                        let idToDel = ''
+                        for (let dataToDel of that.selection) {
+                            idToDel += dataToDel.id + ' ';
+                        }
+                        let param = {'idToDel': idToDel};
+                        axios.delete(Car, {data: param})
+                            .then(
+                                res => {
+                                    console.log(res);
+                                    that.$Message.info(res.data.message);
+                                })
+                            .catch(
+                                err => {
+                                    that.$Message.error(err.response.data.message);
+                                }
+                            );
                         for (let dataToDel of that.selection) {
                             for (let i in that.tableData) {
                                 if (that.tableData[i].id === dataToDel.id) {
@@ -279,20 +314,25 @@
             beforeEdit(index) {
                 this.editModal = true;
                 let data = this.tableData[index];
-                this.EditModalForm.ownerName = data.ownerName;
-                this.EditModalForm.ownerIDNum = '';
-                this.EditModalForm.ownerPhoneNum = '';
-                this.EditModalForm.ownerAddress = data.ownerAddress;
-                this.EditModalForm.type = data.type;
+                this.EditModalForm.id = data.id;
+                this.EditModalForm.name = data.name;
+                this.EditModalForm.idCardNum = data.idCardNum;
+                this.EditModalForm.phoneNum = data.phoneNum;
+                this.EditModalForm.houseNumber = data.houseNumber;
+                this.EditModalForm.brand = data.brand;
                 this.EditModalForm.plateNumber = data.plateNumber;
+                this.EditModalForm.phoneNum = data.phoneNum;
+                this.EditModalForm.idCardNum = data.idCardNum;
             },
             show(index) {
                 this.$Modal.info({
                     title: '车辆信息',
-                    content: `类型：${this.tableData[index].type}<br>` +
+                    content: `类型：${this.tableData[index].brand}<br>` +
                         `车牌号：${this.tableData[index].plateNumber}<br>` +
-                        `车主姓名：${this.tableData[index].ownerName}<br>` +
-                        `车主住址：${this.tableData[index].ownerAddress}<br>` +
+                        `车主姓名：${this.tableData[index].name}<br>` +
+                        `车主住址：${this.tableData[index].houseNumber}<br>` +
+                        `车主电话：${this.tableData[index].phoneNum}<br>` +
+                        `车主身份证号：${this.tableData[index].idCardNum}<br>` +
                         `状态：${this.tableData[index].status}<br>`
                 })
             },
@@ -302,6 +342,16 @@
                     title: "删除",
                     content: "确认要删除该记录吗?",
                     onOk() {
+                        axios.delete(Car + '/' + that.tableData[index].id)
+                            .then(
+                                res => {
+                                    that.$Message.error(res.data.data.message);
+                                })
+                            .catch(
+                                err => {
+                                    that.$Message.error(err.response.data.message);
+                                }
+                            );
                         that.tableData.splice(index, 1);
                     }
                 })
@@ -309,15 +359,68 @@
             selectionChange(selection) {
                 this.selection = selection;
             },
-            changePage() {
+            changePage(pageNum) {
+                this.getOwnerVehicalList(this.pageData.pageSize, pageNum)
+            },
+            changePageSize(pageSize) {
+                this.pageData.currentPage = 1;
+                this.pageData.pageSize = pageSize
+                this.getOwnerVehicalList(this.pageData.pageSize, this.pageData.currentPage)
             },
             doAdd() {
                 this.addModal = false;
-                this.clearForm('add')
+                let formData = new FormData();
+                formData.append('brand', this.AddModalForm.brand);
+                formData.append('plateNumber', this.AddModalForm.plateNumber);
+                formData.append('name', this.AddModalForm.name);
+                formData.append('houseNumber', this.AddModalForm.houseNumber);
+                formData.append('phoneNum', this.AddModalForm.phoneNum);
+                formData.append('idCardNum', this.AddModalForm.idCardNum);
+                let that = this
+                axios.post(Car, formData).then(
+                    res => {
+                        if (res.status === 201) {
+                            that.$Message.info("添加成功");
+                            that.getOwnerVehicalList(that.pageData.pageSize, that.getLastPage('add'));
+                            that.closeModal();
+                        }
+                        that.clearForm('add')
+                    }
+                ).catch(
+                    err => {
+                        that.$Message.error(err.response.data.message);
+                    }
+                )
+            },
+            getLastPage(method, count = 1) {
+                if (method === 'add') {
+                    return Math.ceil((this.pageData.dataCount + count) / this.pageData.pageSize);
+                }
             },
             doEdit() {
                 this.editModal = false;
-                this.clearForm('edit')
+                let formData = new FormData();
+                formData.append('brand', this.EditModalForm.brand);
+                formData.append('plateNumber', this.EditModalForm.plateNumber);
+                formData.append('name', this.EditModalForm.name);
+                formData.append('houseNumber', this.EditModalForm.houseNumber);
+                formData.append('phoneNum', this.EditModalForm.phoneNum);
+                formData.append('idCardNum', this.EditModalForm.idCardNum);
+                let that = this
+                axios.put(Car + '/' + this.EditModalForm.id, formData).then(
+                    res => {
+                        if (res.status === 200) {
+                            that.$Message.info("编辑成功");
+                            that.getOwnerVehicalList(that.pageData.pageSize, that.pageData.currentPage);
+                            that.closeModal();
+                        }
+                        that.clearForm('edit')
+                    }
+                ).catch(
+                    err => {
+                        that.$Message.error(err.response.data.message);
+                    }
+                )
             },
             cancelOrNot(modalName) {
                 let that = this;
@@ -346,22 +449,40 @@
             },
             clearForm(formName) {
                 if (formName === 'add') {
-                    this.AddModalForm.ownerName = ''
-                    this.AddModalForm.ownerIDNum = ''
-                    this.AddModalForm.ownerPhoneNum = ''
-                    this.AddModalForm.ownerAddress = ''
-                    this.AddModalForm.type = ''
+                    this.AddModalForm.name = ''
+                    this.AddModalForm.idCardNum = ''
+                    this.AddModalForm.phoneNum = ''
+                    this.AddModalForm.houseNumber = ''
+                    this.AddModalForm.brand = ''
                     this.AddModalForm.plateNumber = ''
                 }
                 if (formName === 'edit') {
-                    this.EditModalForm.ownerName = ''
-                    this.EditModalForm.ownerIDNum = ''
-                    this.EditModalForm.ownerPhoneNum = ''
-                    this.EditModalForm.ownerAddress = ''
-                    this.EditModalForm.type = ''
+                    this.EditModalForm.name = ''
+                    this.EditModalForm.idCardNum = ''
+                    this.EditModalForm.phoneNum = ''
+                    this.EditModalForm.houseNumber = ''
+                    this.EditModalForm.brand = ''
                     this.EditModalForm.plateNumber = ''
                 }
             }
-        }
+        },
+        computed: {
+            currentUserID() {
+                return this.$store.state.currentUserID;
+            },
+        },
+        watch: {
+            currentUserID(userID) {
+                // 用户ID变化重新获取用户信息
+                if (userID !== "") {
+                    this.getOwnerVehicalList(this.pageData.pageSize, 1);
+                } else {
+                    this.$Message.info("请先登录");
+                    this.tableData=[];
+                    this.login();
+                }
+            },
+        },
+
     }
 </script>

@@ -6,6 +6,8 @@ import enums
 from flask import session
 from sqlalchemy.ext.declarative import DeclarativeMeta
 
+from database import db_session
+
 
 class AlchemyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -40,7 +42,8 @@ class PaginationHelper:
 
 
 def queryToJson(query):
-    return json.loads(json.dumps(query, cls=AlchemyEncoder))
+    data = json.loads(json.dumps(query, cls=AlchemyEncoder))
+    return data
 
 
 def messageToJson(message="", data=None, queryData=None):

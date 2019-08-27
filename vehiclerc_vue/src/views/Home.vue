@@ -17,7 +17,7 @@
                     :on-exceeded-size="handleMaxSize">
                 <div :style="{padding: '20px', minHeight: '280px'}">
                     <div class="upload-button">
-                        <Icon type="ios-camera" size="52" style="color: #3399ff"></Icon>
+                        <Icon type="ios-camera" size="52" style="color: #E58E0B"></Icon>
                         <p>添加/拖拽车牌图片到此处</p>
                         <p class="tips">文件最大不得超过10M</p>
                         <p class="tips">请上传jpg/jpeg/png格式的文件</p>
@@ -25,7 +25,7 @@
                 </div>
             </Upload>
             <Row type="flex" justify="center" align="middle" style="margin-top: 20px">
-                <Button type="dashed" @click="this.$refs.upload.clearFiles()">清除上传历史</Button>
+                <Button type="dashed" @click="clear">清除上传历史</Button>
             </Row>
 
         </Content>
@@ -33,44 +33,73 @@
             <Row v-show="!success" type="flex" justify="center" align="middle" style="margin-top: 20px">
                 <Button type="text" loading>加载中...</Button>
             </Row>
-            <Form v-if="success" :model="recognitionData" :label-width="100">
+            <Form v-if="success" :model="recognitionData" :label-width="120">
                 <FormItem label="车牌号">
-                    <Input disabled v-model="recognitionData.data.number"/>
+                    {{recognitionData.data.number}}
                 </FormItem>
                 <FormItem label="车辆类别">
-                    <Input disabled v-model="recognitionData.data.type"/>
+                    {{recognitionData.data.type}}
                 </FormItem>
                 <FormItem label="当前状态">
-                    <Input disabled v-model="recognitionData.data.inOrOutText"/>
+                    {{recognitionData.data.inOrOutText}}
                 </FormItem>
                 <FormItem label="停车时长" v-show="recognitionData.data.inOrOut === 'out'">
-                    <Input disabled v-model="recognitionData.data.parkTime"/>
+                    {{recognitionData.data.parkTime}}小时
                 </FormItem>
-                <FormItem label="应缴费用" v-show="recognitionData.data.inOrOut === 'out'">
-                    <Input disabled v-model="recognitionData.data.price"/>
+                <FormItem label="应缴费用"
+                          v-show="recognitionData.data.inOrOut === 'out' && !recognitionData.data.isOwnerCar">
+                    {{recognitionData.data.price}}
                 </FormItem>
                 <FormItem label="每小时价格"
                           v-show="recognitionData.data.inOrOut === 'in' && !recognitionData.data.isOwnerCar">
-                    <Input disabled v-model="recognitionData.data.pricePerHour"/>
+                    {{recognitionData.data.pricePerHour}}元
                 </FormItem>
                 <FormItem label="推荐车位号码" v-show="recognitionData.data.inOrOut === 'in'">
-                    <Input disabled v-model="recognitionData.data.parkingSpace"/>
+                    <Tag color="volcano">{{recognitionData.data.parkingSpace}}</Tag>
+                </FormItem>
+                <FormItem label="今日限行"
+                          v-if="recognitionData.data.isOwnerCar && recognitionData.data.inOrOut === 'out'">
+                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[0]}}</Tag>
+                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[1]}}</Tag>
+                </FormItem>
+                <FormItem label="明日限行"
+                          v-if="recognitionData.data.isOwnerCar && recognitionData.data.inOrOut === 'in'">
+                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[0]}}</Tag>
+                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[1]}}</Tag>
                 </FormItem>
             </Form>
         </Modal>
     </div>
 </template>
 <script>
-    import {Recognition} from "../assets/js/url";
+    import {AudioPath, Recognition} from "../assets/js/url";
 
     export default {
+        inject: ['login'],
         data() {
             return {
                 visible: false,
                 success: false,
                 uploadUrl: Recognition,
                 recognitionData: [],
+                timer: ''
             }
+        },
+        mounted() {
+            if (this.$store.state.currentUserID === "") {
+                this.$Message.info("请先登录");
+                this.tableData = [];
+                this.login();
+            }
+        },
+        watch: {
+            currentUserID(userID) {
+                // 用户ID变化重新获取用户信息
+                if (userID === "") {
+                    this.$Message.info("请先登录");
+                    this.login();
+                }
+            },
         },
         methods: {
             handleBeforeUpload() {
@@ -80,9 +109,11 @@
             handleSuccess(response, file, fileList) {
                 this.success = true;
                 this.recognitionData = response;
+                let src = AudioPath + '/' + response.data.audioPath;
+                let audio = new Audio();
+                audio.src = src;
+                audio.play();
                 console.log(response);
-                console.log(file);
-                console.log(fileList);
             },
             handleError(error, file, fileList) {
                 this.success = false;
@@ -104,6 +135,9 @@
                     desc: '文件\"' + file.name + '\"过大，图片文件不能超过10M'
                 })
             },
+            clear() {
+                this.$refs.upload.clearFiles();
+            }
         }
     }
 </script>

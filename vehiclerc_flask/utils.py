@@ -2,6 +2,10 @@ import datetime
 import hashlib
 import json
 import math
+import re
+import urllib
+from urllib.parse import urlencode
+
 import enums
 from flask import session
 from sqlalchemy.ext.declarative import DeclarativeMeta
@@ -75,7 +79,6 @@ def md5(text):
     return hashlib.md5(text.encode(encoding='UTF-8')).hexdigest()
 
 
-#
 def calc_price(time):
     money = time * enums.pricePerHour
     return money
@@ -101,3 +104,11 @@ def is_login():
 
 def who_is_login():
     return session.get('USERUNIQUEID')
+
+
+def is_restriction(plate_number, restriction_array):
+    for i in reversed(plate_number):
+        if '0' <= i <= '9':
+            plate_number = int(i)
+            break
+    return plate_number in restriction_array

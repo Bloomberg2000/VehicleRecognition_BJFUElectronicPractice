@@ -1,4 +1,5 @@
 import datetime
+import math
 import os
 from datetime import timedelta
 import sqlalchemy
@@ -7,10 +8,13 @@ from flask_restful import Resource, Api
 from sqlalchemy import and_, or_
 
 import enums
+import speech
+import utils
 from database import db_session
 from enums import CarStatus
 from models import Cars, ParkingLog, ParkingSpace, Users
 from recognition import get_license_plate
+from restriction import get_restriction_info
 from utils import queryToJson, messageToJson, PaginationHelper, is_login, who_is_login, md5, current_time, calc_price, \
     utc_to_local
 
@@ -331,13 +335,17 @@ class ParkingLogDetail(Resource):
             return messageToJson(message="记录不存在"), 400
 
 
-#
-#
-# class ImageDetail(Resource):
-#     def index(self, image_name):
-#         image = file(basedir + "/static/userUpload/{}".format(image_name))
-#         resp = Response(image, mimetype="image/jpeg")
-#         return resp
+class AudioDetail(Resource):
+    def get(self, file_name):
+        def generate():
+            path = basedir + "/static/audio/{}".format(file_name)
+            with open(path, 'rb') as fmp3:
+                data = fmp3.read(1024)
+                while data:
+                    yield data
+                    data = fmp3.read(1024)
+
+        return Response(generate(), mimetype="audio/mpeg3")
 
 
 class RecognitionView(Resource):
@@ -354,7 +362,9 @@ class RecognitionView(Resource):
         try:
             plate_color = recognition_result['words_result']['color']
             plate_number = recognition_result['words_result']['number']
+            os.remove(image_path)
         except KeyError:
+            os.remove(image_path)
             return messageToJson(message="未检测到车牌"), 500
 
         type = '新能源车' if (plate_color == 'green') else '燃油车'
@@ -383,17 +393,23 @@ class RecognitionView(Resource):
             message['inOrOutText'] = '出库'
             parking_log.outTime = current_time()  # 储存外出时间
             # 是否为业主车
+            restriction = get_restriction_info("1")  # 返回业主车状态数据
             if message['isOwnerCar']:
                 parking_log.status = CarStatus.OUT  # 状态为外出
                 owner_car.status = CarStatus.OUT  # 同时修改业主车表
                 message['ownerData'] = queryToJson(owner_car)  # 返回业主车状态数据
+                message['restriction'] = restriction
             else:
                 parking_log.status = CarStatus.LEAVED  # 状态为驶离开
             # 计算停车时长和应缴费用
+            # park_time = (datetime.datetime.strptime(parking_log.outTime,
+            #                                         "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
             park_time = (datetime.datetime.strptime(parking_log.outTime,
-                                                    "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds() // 3600  # 计算小时数
+                                                    "%Y-%m-%d %H:%M:%S") - parking_log.enterTime).total_seconds()  # 计算小时数
             message['parkTime'] = park_time
-            message['price'] = str(calc_price(park_time)) + '元'
+            if not message['isOwnerCar']:
+                parking_log.cost = calc_price(park_time)  # 状态为驶离开
+                message['price'] = str(calc_price(park_time)) + '元'
             message['logInfo'] = queryToJson(parking_log)
             # 查询车位状态
             parking_space = ParkingSpace.query.filter(ParkingSpace.plateNumber == plate_number).first()
@@ -401,6 +417,9 @@ class RecognitionView(Resource):
                 # 令车位空闲
                 parking_space.status = enums.ParkingSpaceStatus.FREE
                 parking_space.plateNumber = '-'
+                message['audioPath'] = speech.speech(message['isOwnerCar'], message['inOrOut'], plate_number,
+                                                     restriction['xxweihao'], parking_time=str(math.ceil(park_time)),
+                                                     parking_cost=str(calc_price(park_time))) + '.mp3'
                 db_session.commit()  # 保存数据库状态
                 db_session.close()
                 return messageToJson(data=message), 200
@@ -415,10 +434,12 @@ class RecognitionView(Resource):
             message['inOrOutText'] = '入库'
             new_parking_log = ParkingLog(plate_number, plate_color, current_time())
             # 是否为业主车
+            restriction = get_restriction_info("2")  # 返回业主车状态数据
             if message['isOwnerCar']:
                 new_parking_log.type = enums.CarType.OWNER
                 owner_car.status = CarStatus.PARKING  # 当前状态为停泊
                 message['ownerData'] = queryToJson(owner_car)  # 返回业主车状态数据
+                message['restriction'] = restriction  # 返回业主车状态数据
             else:
                 message['pricePerHour'] = enums.pricePerHour  # 外来车辆提供价格信息
             db_session.add(new_parking_log)  # 添加入库记录
@@ -435,30 +456,34 @@ class RecognitionView(Resource):
             else:
                 # 对应区域没有车位，全局查询
                 parking_space = ParkingSpace.query.filter(ParkingSpace.status == enums.ParkingSpaceStatus.FREE)
-                if parking_space.count > 0:
+                if parking_space.count() > 0:
                     parking_space = parking_space.order_by(ParkingSpace.id).first()
                 else:
                     # 此处不保存任何数据库状态
                     db_session.close()
                     return messageToJson(message="已无空闲车位，请稍后", data=message), 500
             # 改变车位状态
-            parking_space.status = enums.ParkingSpaceStatus.USED
+            parking_space.status = enums.ParkingSpaceStatus.FREE
             parking_space.plateNumber = plate_number
             message['logInfo'] = queryToJson(new_parking_log)
             message['parkingSpace'] = parking_space.spaceName
+            message['audioPath'] = speech.speech(message['isOwnerCar'], message['inOrOut'], plate_number,
+                                                 restriction['xxweihao'],
+                                                 parking_place=parking_space.spaceName) + '.mp3'
             # 保存数据库信息
             db_session.commit()
             db_session.close()
             return messageToJson(data=message), 200
 
 
-api.add_resource(UserView, '/user')
-api.add_resource(AuthView, '/auth')
-api.add_resource(RecognitionView, '/recognition')
-api.add_resource(CarList, '/car')
-api.add_resource(CarDetail, '/car/<car_id>')
-api.add_resource(ParkingLogList, '/parkingLog')
-api.add_resource(ParkingLogDetail, '/parkingLog/<log_id>')
+api.add_resource(UserView, '/vehiclerc/user')
+api.add_resource(AuthView, '/vehiclerc/auth')
+api.add_resource(RecognitionView, '/vehiclerc/recognition')
+api.add_resource(CarList, '/vehiclerc/car')
+api.add_resource(CarDetail, '/vehiclerc/car/<car_id>')
+api.add_resource(ParkingLogList, '/vehiclerc/parkingLog')
+api.add_resource(ParkingLogDetail, '/vehiclerc/parkingLog/<log_id>')
+api.add_resource(AudioDetail, '/vehiclerc/audio/<file_name>')
 
 if __name__ == '__main__':
     app.run(debug=True)

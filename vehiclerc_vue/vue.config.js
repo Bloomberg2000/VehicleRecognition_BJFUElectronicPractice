@@ -61,7 +61,7 @@ module.exports = {
         hotOnly: true, // 热更新
         proxy:
             { // 配置自动启动浏览器
-                "/":
+                "/vehiclerc":
                     {
                         target: "http://0.0.0.0:5000/",
                         changeOrigin:

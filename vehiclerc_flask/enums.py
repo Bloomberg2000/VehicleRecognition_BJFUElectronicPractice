@@ -20,4 +20,4 @@ class ParkingSpaceType:
 
 
 # 每小时价格
-pricePerHour = 10
+pricePerHour = 1

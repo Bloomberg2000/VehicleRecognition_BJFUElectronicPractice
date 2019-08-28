@@ -59,13 +59,13 @@
                 </FormItem>
                 <FormItem label="今日限行"
                           v-if="recognitionData.data.isOwnerCar && recognitionData.data.inOrOut === 'out'">
-                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[0]}}</Tag>
-                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[1]}}</Tag>
+                    <Tag color="warning">{{recognitionData.data.restriction.xxweihao[0]}}</Tag>
+                    <Tag color="warning">{{recognitionData.data.restriction.xxweihao[1]}}</Tag>
                 </FormItem>
                 <FormItem label="明日限行"
                           v-if="recognitionData.data.isOwnerCar && recognitionData.data.inOrOut === 'in'">
-                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[0]}}</Tag>
-                    <Tag color="gold">{{recognitionData.data.restriction.xxweihao[1]}}</Tag>
+                    <Tag color="warning">{{recognitionData.data.restriction.xxweihao[0]}}</Tag>
+                    <Tag color="warning">{{recognitionData.data.restriction.xxweihao[1]}}</Tag>
                 </FormItem>
             </Form>
         </Modal>

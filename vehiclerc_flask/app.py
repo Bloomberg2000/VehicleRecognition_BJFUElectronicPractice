@@ -463,7 +463,7 @@ class RecognitionView(Resource):
                     db_session.close()
                     return messageToJson(message="已无空闲车位，请稍后", data=message), 500
             # 改变车位状态
-            parking_space.status = enums.ParkingSpaceStatus.FREE
+            parking_space.status = enums.ParkingSpaceStatus.USED
             parking_space.plateNumber = plate_number
             message['logInfo'] = queryToJson(new_parking_log)
             message['parkingSpace'] = parking_space.spaceName

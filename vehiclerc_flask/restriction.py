@@ -11,7 +11,7 @@ def get_restriction_info(type):
     """
     type:查询限号类型，1:今天 2:明天 3:后天
     """
-    params = {"key": "11e4473b806b6d3e7715cfb7eac21ad8", "city": "beijing", "type": type}
+    params = {"key": "63dff571549c3ff165a9d685027c5fe0", "city": "beijing", "type": type}
     return restriction_query(params)
 
 

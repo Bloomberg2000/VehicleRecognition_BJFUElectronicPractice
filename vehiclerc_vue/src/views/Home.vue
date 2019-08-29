@@ -17,7 +17,7 @@
                     :on-exceeded-size="handleMaxSize">
                 <div :style="{padding: '20px', minHeight: '280px'}">
                     <div class="upload-button">
-                        <Icon type="ios-camera" size="52" style="color: #E58E0B"></Icon>
+                        <Icon type="ios-camera" size="52" style="color: #6c567b"></Icon>
                         <p>添加/拖拽车牌图片到此处</p>
                         <p class="tips">文件最大不得超过10M</p>
                         <p class="tips">请上传jpg/jpeg/png格式的文件</p>
@@ -33,6 +33,9 @@
             <Row v-show="!success" type="flex" justify="center" align="middle" style="margin-top: 20px">
                 <Button type="text" loading>加载中...</Button>
             </Row>
+            <div style="width: 300px; text-align: center">
+                <img :src="picPath" style="height: 100px">
+            </div>
             <Form v-if="success" :model="recognitionData" :label-width="120">
                 <FormItem label="车牌号">
                     {{recognitionData.data.number}}
@@ -72,7 +75,7 @@
     </div>
 </template>
 <script>
-    import {AudioPath, Recognition} from "../assets/js/url";
+    import {AudioPath, PicturePath, Recognition} from "../assets/js/url";
 
     export default {
         inject: ['login'],
@@ -82,6 +85,7 @@
                 success: false,
                 uploadUrl: Recognition,
                 recognitionData: [],
+                picPath: '',
                 timer: ''
             }
         },
@@ -105,10 +109,12 @@
             handleBeforeUpload() {
                 this.success = false;
                 this.visible = true;
+                this.picPath = '';
             },
             handleSuccess(response, file, fileList) {
                 this.success = true;
                 this.recognitionData = response;
+                this.picPath = PicturePath + '/' + response.data.picturePath;
                 let src = AudioPath + '/' + response.data.audioPath;
                 let audio = new Audio();
                 audio.src = src;

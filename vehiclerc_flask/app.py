@@ -335,6 +335,19 @@ class ParkingLogDetail(Resource):
             return messageToJson(message="记录不存在"), 400
 
 
+class PictureDetail(Resource):
+    def get(self, file_name):
+        def generate():
+            path = basedir + "/static/userUpload/{}".format(file_name)
+            with open(path, 'rb') as pic:
+                data = pic.read(1024)
+                while data:
+                    yield data
+                    data = pic.read(1024)
+
+        return Response(generate(), mimetype="image/jpeg")
+
+
 class AudioDetail(Resource):
     def get(self, file_name):
         def generate():
@@ -362,20 +375,12 @@ class RecognitionView(Resource):
         try:
             plate_color = recognition_result['words_result']['color']
             plate_number = recognition_result['words_result']['number']
-            os.remove(image_path)
         except KeyError:
-            os.remove(image_path)
             return messageToJson(message="未检测到车牌"), 500
 
         type = '新能源车' if (plate_color == 'green') else '燃油车'
-        message = {
-            'isOwnerCar': False,
-            'inOrOut': '',
-            'inOrOutText': '',
-            'type': type,
-            'number': plate_number,
-            'fileName': plate_photo.filename
-        }
+        message = {'isOwnerCar': False, 'inOrOut': '', 'inOrOutText': '', 'type': type, 'number': plate_number,
+                   'fileName': plate_photo.filename, 'picturePath': plate_photo.filename}
         # 检索是否为业主车
         owner_car = Cars.query.filter(Cars.plateNumber == plate_number).first()
         if owner_car:
@@ -483,6 +488,7 @@ api.add_resource(CarList, '/vehiclerc/car')
 api.add_resource(CarDetail, '/vehiclerc/car/<car_id>')
 api.add_resource(ParkingLogList, '/vehiclerc/parkingLog')
 api.add_resource(ParkingLogDetail, '/vehiclerc/parkingLog/<log_id>')
+api.add_resource(PictureDetail, '/vehiclerc/picture/<file_name>')
 api.add_resource(AudioDetail, '/vehiclerc/audio/<file_name>')
 
 if __name__ == '__main__':

@@ -276,7 +276,7 @@
             },
             batchDeletion() {
                 let that = this;
-                this.$Modal.warning({
+                this.$Modal.confirm({
                     title: "批量删除",
                     content: "确认要删除已选择的记录吗?",
                     onOk() {

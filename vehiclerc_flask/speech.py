@@ -10,9 +10,9 @@ from aip import AipSpeech
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 """ 你的 APPID AK SK """
-APP_ID = '17084533'
-API_KEY = '2agPeouYKVyieA71K7en9li6'
-SECRET_KEY = 'n8oTgNWFUX7TLD8GMF7ymwTnXgQBaaK4'
+APP_ID = ''
+API_KEY = ''
+SECRET_KEY = ''
 client = AipSpeech(APP_ID, API_KEY, SECRET_KEY)
 
 

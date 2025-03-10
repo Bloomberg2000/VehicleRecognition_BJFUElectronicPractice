@@ -5,8 +5,8 @@ import urllib
 import urllib.parse
 import urllib.request
 
-client_id = 'zIr1X7U1lnwx07AEjpfl8gXB'
-client_secret = 'IYTQsmWdwuyIqXScUf1bDmZjCdMfrZZj'
+client_id = ''
+client_secret = ''
 
 
 # 获取token
